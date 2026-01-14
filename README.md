@@ -27,6 +27,68 @@ flutter run -d macos
 flutter run -d chrome
 ```
 
+## Current Issues
+
+Some shaders may fail to run on the Web (due to Skia’s SkSL limitations) but work fine on desktop and mobile platforms. However, they can still run on ShaderToy. At the moment, it’s possible to fix them one by one—for example, by switching to compatible syntax and using macros to replace unsupported functions.
+
+```glsl
+// Whether to remap derivative builtins (dFdx/dFdy/fwidth) to fallbacks.
+//
+// Default behavior:
+// - GLSL < 300: remap ON (common on WebGL1-style paths)
+// - GLSL >= 300: remap OFF
+//
+// You can override by defining `SG_REMAP_DERIVATIVES` before including this file.
+#ifndef SG_REMAP_DERIVATIVES
+#if !defined(__VERSION__) || (__VERSION__ < 300)
+#define SG_REMAP_DERIVATIVES 1
+#else
+#define SG_REMAP_DERIVATIVES 0
+#endif
+#endif
+
+// Derivatives (`dFdx/dFdy/fwidth`) are not available in GLSL ES 1.00 unless
+// `OES_standard_derivatives` is enabled. Some web backends (or transpilers)
+// compile to GLSL 1.00 without enabling the extension, which makes `fwidth`
+// an unknown identifier.
+//
+// Use `sg_fwidth()` instead of `fwidth()` in migrated shaders.
+float sg_fwidth(float x) {
+
+// If we remap `fwidth` -> `sg_fwidth`, do NOT call the builtin here to avoid
+// macro recursion.
+#if (SG_REMAP_DERIVATIVES == 0) && defined(__VERSION__) && (__VERSION__ >= 300)
+	return fwidth(x);
+#else
+	// Best-effort AA width fallback when derivatives are unavailable.
+	return 1.0 / max(iResolution.x, iResolution.y);
+#endif
+}
+
+vec2 sg_fwidth(vec2 v) { return vec2(sg_fwidth(v.x), sg_fwidth(v.y)); }
+vec3 sg_fwidth(vec3 v) { return vec3(sg_fwidth(v.x), sg_fwidth(v.y), sg_fwidth(v.z)); }
+vec4 sg_fwidth(vec4 v) { return vec4(sg_fwidth(v.x), sg_fwidth(v.y), sg_fwidth(v.z), sg_fwidth(v.w)); }
+
+// Derivative fallbacks.
+// NOTE: These are NOT equivalent to real screen-space derivatives.
+float sg_dFdx(float x) { return 0.0; }
+float sg_dFdy(float x) { return 0.0; }
+vec2 sg_dFdx(vec2 v) { return vec2(0.0); }
+vec2 sg_dFdy(vec2 v) { return vec2(0.0); }
+vec3 sg_dFdx(vec3 v) { return vec3(0.0); }
+vec3 sg_dFdy(vec3 v) { return vec3(0.0); }
+vec4 sg_dFdx(vec4 v) { return vec4(0.0); }
+vec4 sg_dFdy(vec4 v) { return vec4(0.0); }
+
+#if SG_REMAP_DERIVATIVES
+#define dFdx sg_dFdx
+#define dFdy sg_dFdy
+#define fwidth sg_fwidth
+#endif
+```
+
+However, if Flutter fixes this issue in the future, this work would become unnecessary, and some of these workarounds may introduce performance overhead.
+
 ## Shader List (Alphabetical)
 
 - [`shaders/a/A lot of spheres.frag`](https://www.shadertoy.com/view/lsX3WH)
@@ -196,3 +258,9 @@ flutter run -d chrome
 - [`shaders/w/Where the River Goes.frag`](https://www.shadertoy.com/view/Xl2XRW)
 
 - [`shaders/z/Zippy Zaps.frag`](https://www.shadertoy.com/view/XXyGzh)
+
+根据 prot_shader.prompt.md 文档修复当前着色器，并重新整理迁移文档
+
+报错如下，仅在 Web 端出现，修复需要不带来性能问题
+
+，你只需要修复，不需要验证
