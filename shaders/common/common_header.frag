@@ -5,7 +5,7 @@
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 precision highp float;
-
+precision highp int;
 
 // 按需在 shader 源码里添加：`uniform sampler2D iChannel[0-N];`
 //
@@ -14,6 +14,60 @@ uniform vec2 iResolution;
 uniform float iTime;
 uniform float iFrame;
 uniform vec4 iMouse;
+
+// Whether to remap derivative builtins (dFdx/dFdy/fwidth) to fallbacks.
+//
+// Default behavior:
+// - GLSL < 300: remap ON (common on WebGL1-style paths)
+// - GLSL >= 300: remap OFF
+//
+// You can override by defining `SG_REMAP_DERIVATIVES` before including this file.
+#ifndef SG_REMAP_DERIVATIVES
+#if !defined(__VERSION__) || (__VERSION__ < 300)
+#define SG_REMAP_DERIVATIVES 1
+#else
+#define SG_REMAP_DERIVATIVES 0
+#endif
+#endif
+
+// Derivatives (`dFdx/dFdy/fwidth`) are not available in GLSL ES 1.00 unless
+// `OES_standard_derivatives` is enabled. Some web backends (or transpilers)
+// compile to GLSL 1.00 without enabling the extension, which makes `fwidth`
+// an unknown identifier.
+//
+// Use `sg_fwidth()` instead of `fwidth()` in migrated shaders.
+float sg_fwidth(float x) {
+
+// If we remap `fwidth` -> `sg_fwidth`, do NOT call the builtin here to avoid
+// macro recursion.
+#if (SG_REMAP_DERIVATIVES == 0) && defined(__VERSION__) && (__VERSION__ >= 300)
+	return fwidth(x);
+#else
+	// Best-effort AA width fallback when derivatives are unavailable.
+	return 1.0 / max(iResolution.x, iResolution.y);
+#endif
+}
+
+vec2 sg_fwidth(vec2 v) { return vec2(sg_fwidth(v.x), sg_fwidth(v.y)); }
+vec3 sg_fwidth(vec3 v) { return vec3(sg_fwidth(v.x), sg_fwidth(v.y), sg_fwidth(v.z)); }
+vec4 sg_fwidth(vec4 v) { return vec4(sg_fwidth(v.x), sg_fwidth(v.y), sg_fwidth(v.z), sg_fwidth(v.w)); }
+
+// Derivative fallbacks.
+// NOTE: These are NOT equivalent to real screen-space derivatives.
+float sg_dFdx(float x) { return 0.0; }
+float sg_dFdy(float x) { return 0.0; }
+vec2 sg_dFdx(vec2 v) { return vec2(0.0); }
+vec2 sg_dFdy(vec2 v) { return vec2(0.0); }
+vec3 sg_dFdx(vec3 v) { return vec3(0.0); }
+vec3 sg_dFdy(vec3 v) { return vec3(0.0); }
+vec4 sg_dFdx(vec4 v) { return vec4(0.0); }
+vec4 sg_dFdy(vec4 v) { return vec4(0.0); }
+
+#if SG_REMAP_DERIVATIVES
+#define dFdx sg_dFdx
+#define dFdy sg_dFdy
+#define fwidth sg_fwidth
+#endif
 
 // Shadertoy 风格的每通道 wrap 模式（x/y/z/w == iChannel0..3）。
 // 用 float 编码：
@@ -74,10 +128,31 @@ vec2 sg_texelCenterUv(ivec2 ipos, vec2 sizePx) {
 }
 #define SG_HAS_TEXEL_CENTER_UV 1
 
+// Compile-time switch for native texelFetch.
+//
+// NOTE:
+// - This must be decided at compile time (a uniform cannot guard unsupported syntax).
+// - Only enable this when you know the current backend/compiler supports `texelFetch`.
+//
+// 用于切换“真实 texelFetch”与兼容实现的编译期开关。
+// 注意：必须是编译期开关（uniform 无法保护不支持的语法）。
+// 只在你确认当前后端/编译器支持 `texelFetch` 时才打开。
+#ifndef SG_USE_NATIVE_TEXELFETCH
+#define SG_USE_NATIVE_TEXELFETCH 0
+#endif
+
 // 注意：这里不支持 LOD（Flutter runtime shader 通常不暴露 mip 控制）。
 //
 // NOTE: LOD is not supported here (Flutter runtime shaders generally don't expose mip control).
-#define SG_TEXELFETCH(tex, ipos, sizePx) texture((tex), sg_texelCenterUv((ipos), (sizePx)))
+#if SG_USE_NATIVE_TEXELFETCH
+// Real texelFetch path (Impeller may support this).
+// NOTE: LOD is forced to 0.
+#define SG_TEXELFETCH(tex, ipos, sizePx) texelFetch((tex), (ipos), 0)
+#else
+// Fallback path: sample texel center via texture() + snapped UV.
+// #define SG_TEXELFETCH(tex, ipos, sizePx) texture((tex), sg_texelCenterUv((ipos), (sizePx)))
+#define SG_TEXELFETCH(tex, ipos, sizePx) texture((tex), (vec2(ipos) + 0.5) / (sizePx))
+#endif
 #define SG_HAS_TEXELFETCH 1
 
 // Convenience: channel sizes and texel fetch without manually passing size.
@@ -152,17 +227,22 @@ vec2 sg_texelCenterUv(ivec2 ipos, vec2 sizePx) {
 #define SG_TEX2(tex, uv) SG_SAMPLE_FILTER((tex), (uv), iChannelWrap.z, iChannelFilter.z, SG_CHANNEL_SIZE2)
 #define SG_TEX3(tex, uv) SG_SAMPLE_FILTER((tex), (uv), iChannelWrap.w, iChannelFilter.w, SG_CHANNEL_SIZE3)
 
-
-
-
-// TODO:
 // 非常奇怪，在编写的过程中，传递 sampler2D 在 awesome_flutter_shaders 的 runtime 下正常
 // 但是在当前 example 中有运行报错
+// 2026.01.5: 因为当前项目没有启用 Impeller，Mac 需要在 Info.plist 中添加
+// <key>FLTEnableImpeller</key>
+// <true />
+// 启用 Impeller 后，支持传递 sampler2D 了, 但先选择使用宏定义版本以保证兼容性
 //
 // It's very strange that passing sampler2D works fine in awesome_flutter_shaders runtime
 // but causes runtime error in the current example
 // Filtered sampling: 0=linear, 1=nearest. (2=mipmap reserved)
 // Implemented shader-side to avoid relying on backend sampler state.
+// 2026.01.5: Because the current project doesn't enable Impeller, on Mac you need to add
+// <key>FLTEnableImpeller</key>
+// <true />
+// to Info.plist to enable Impeller.
+// After enabling Impeller, passing sampler2D is supported, but we still choose to use macro version for compatibility.
 vec4 sg_sample_filter(sampler2D tex, vec2 uv, float wrapMode, float filterMode, vec2 sizePx) {
     if (filterMode < 0.5) {
         return SG_SAMPLE_LINEAR(tex, uv, wrapMode, sizePx);

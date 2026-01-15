@@ -1,6 +1,16 @@
 // --- Migrate Log ---
-// 添加 Flutter 兼容性 include 文件，声明 iChannel0 uniform
-// Added Flutter compatibility includes, declared iChannel0 uniform
+// 1) 添加 Flutter 兼容性 include 文件，声明 iChannel0 uniform
+// 2) 修复位运算符：将 i&1 和 i>>1 替换为 i - 2*(i/2) 和 i/2 以兼容 WebGL/GLSL ES
+// 3) 修复数组初始化：将数组构造器替换为单独变量声明以兼容 SkSL
+// 4) 修复数组访问：将所有数组访问改为基于索引的条件语句
+// 5) 修复变量作用域：确保所有变量在作用域内正确定义
+//
+// --- Migrate Log (EN) ---
+// 1) Added Flutter compatibility includes, declared iChannel0 uniform
+// 2) Fixed bitwise operators: replaced i&1 and i>>1 with i - 2*(i/2) and i/2 for WebGL/GLSL ES compatibility
+// 3) Fixed array initialization: replaced array constructors with individual variable declarations for SkSL compatibility
+// 4) Fixed array access: changed all array accesses to index-based conditional statements
+// 5) Fixed variable scope: ensured all variables are properly defined within their scope
 // Created by Danil (2021+) https://cohost.org/arugl
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 // self https://www.shadertoy.com/view/NslGRN
@@ -304,7 +314,8 @@ float segShadow( in vec3 ro, in vec3 rd, in vec3 pa, float sh )
     
     for( int i=0; i<4 + ANGLE_loops; i++ )
     {
-        vec2  s = vec2(i&1,i>>1);
+        // Replace i%2 with i - 2*(i/2) for WebGL/GLSL ES compatibility
+        vec2  s = vec2(float(i - 2 * (i / 2)), float(i / 2));
         float t = dot(s,k4) - k3;
         
         if( t>0.0 )
@@ -440,10 +451,19 @@ vec4 insides(vec3 ro, vec3 rd, vec3 nor_c, vec3 l_dir, out float tout)
     vec4 ps = vec4(-bil_size, -bil_size, bil_size, bil_size) * curvature;
     vec4 ph = vec4(-bil_size, bil_size, bil_size, -bil_size) * curvature;
     
-    vec4 [3]colx=vec4[3](vec4(0.),vec4(0.),vec4(0.));
-    vec3 [3]dx=vec3[3](vec3(-1.),vec3(-1.),vec3(-1.));
-    vec4 [3]colxsi=vec4[3](vec4(0.),vec4(0.),vec4(0.));
-    int [3]order=int[3](0,1,2);
+    // Arrays replaced with individual variables for SkSL compatibility
+    vec4 colx0 = vec4(0.);
+    vec4 colx1 = vec4(0.);
+    vec4 colx2 = vec4(0.);
+    vec3 dx0 = vec3(-1.);
+    vec3 dx1 = vec3(-1.);
+    vec3 dx2 = vec3(-1.);
+    vec4 colxsi0 = vec4(0.);
+    vec4 colxsi1 = vec4(0.);
+    vec4 colxsi2 = vec4(0.);
+    int order0 = 0;
+    int order1 = 1;
+    int order2 = 2;
 
     for (int i = 0; i < 3 + ANGLE_loops; i++)
     {
@@ -480,11 +500,19 @@ vec4 insides(vec3 ro, vec3 rd, vec3 nor_c, vec3 l_dir, out float tout)
                 {
                     {
                         vec3 tvalx = vec3(tnew, float(si), tsi);
-                        dx[i]=tvalx;
+                        if (i == 0) dx0 = tvalx;
+                        else if (i == 1) dx1 = tvalx;
+                        else dx2 = tvalx;
                     }
 #ifdef DEBUG
-                    colx[i]=tcol;
-                    if (si)colxsi[i]=tcolsi;
+                    if (i == 0) colx0 = tcol;
+                    else if (i == 1) colx1 = tcol;
+                    else colx2 = tcol;
+                    if (si) {
+                        if (i == 0) colxsi0 = tcolsi;
+                        else if (i == 1) colxsi1 = tcolsi;
+                        else colxsi2 = tcolsi;
+                    }
 #else
 
                     float dif = clamp(dot(normnew, l_dir), 0.0, 1.0);
@@ -504,7 +532,9 @@ vec4 insides(vec3 ro, vec3 rd, vec3 nor_c, vec3 l_dir, out float tout)
                             vec4((tcol.rgb*shad*1.4 + 3.*(tcr*tcol.rgb)*clamp(1.-(amb+dif),0.,1.)), min(tcol.a,ta));
                         tvalx.rgb=clamp(2.*tvalx.rgb*tvalx.rgb,0.,1.);
                         tvalx*=(min(fade*5.,1.));
-                        colx[i]=tvalx;
+                        if (i == 0) colx0 = tvalx;
+                        else if (i == 1) colx1 = tvalx;
+                        else colx2 = tvalx;
                     }
                     if (si)
                     {
@@ -524,7 +554,9 @@ vec4 insides(vec3 ro, vec3 rd, vec3 nor_c, vec3 l_dir, out float tout)
                                 vec4(tcolsi.rgb * shad + 3.*(tcr*tcolsi.rgb)*clamp(1.-(amb+dif),0.,1.), min(tcolsi.a,ta));
                             tvalx.rgb=clamp(2.*tvalx.rgb*tvalx.rgb,0.,1.);
                             tvalx.rgb*=(min(fadesi*5.,1.));
-                            colxsi[i]=tvalx;
+                            if (i == 0) colxsi0 = tvalx;
+                            else if (i == 1) colxsi1 = tvalx;
+                            else colxsi2 = tvalx;
                         }
                     }
 #endif
@@ -534,45 +566,147 @@ vec4 insides(vec3 ro, vec3 rd, vec3 nor_c, vec3 l_dir, out float tout)
     }
     // transparency logic and layers sorting 
     float a = 1.;
-    if (dx[0].x < dx[1].x){{vec3 swap(dx[0], dx[1]);}{int swap(order[0], order[1]);}}
-    if (dx[1].x < dx[2].x){{vec3 swap(dx[1], dx[2]);}{int swap(order[1], order[2]);}}
-    if (dx[0].x < dx[1].x){{vec3 swap(dx[0], dx[1]);}{int swap(order[0], order[1]);}}
-
-    tout = max(max(dx[0].x, dx[1].x), dx[2].x);
-
-    if (dx[0].y < 0.5)
+    // Sort dx0, dx1, dx2 and corresponding order variables
     {
-        a=colx[order[0]].a;
+        vec3 tv;
+        int tv_int;
+        if (dx0.x < dx1.x) { tv = dx0; dx0 = dx1; dx1 = tv; tv_int = order0; order0 = order1; order1 = tv_int; }
+        if (dx1.x < dx2.x) { tv = dx1; dx1 = dx2; dx2 = tv; tv_int = order1; order1 = order2; order2 = tv_int; }
+        if (dx0.x < dx1.x) { tv = dx0; dx0 = dx1; dx1 = tv; tv_int = order0; order0 = order1; order1 = tv_int; }
+    }
+
+    tout = max(max(dx0.x, dx1.x), dx2.x);
+
+    if (dx0.y < 0.5)
+    {
+        // Get colx based on order0
+        if (order0 == 0) a = colx0.a;
+        else if (order0 == 1) a = colx1.a;
+        else a = colx2.a;
     }
 
 #if !(defined(DEBUG)&&defined(BUG))
     
     // self intersection
-    bool [3] rul= bool[3](
-        ((dx[0].y > 0.5) && (dx[1].x <= 0.)),
-        ((dx[1].y > 0.5) && (dx[0].x > dx[1].z)),
-        ((dx[2].y > 0.5) && (dx[1].x > dx[2].z))
-    );
-    for(int k=0;k<3;k++){
-        if(rul[k]){
-            vec4 tcolxsi = vec4(0.);
-            tcolxsi=colxsi[order[k]];
-            vec4 tcolx = vec4(0.);
-            tcolx=colx[order[k]];
-
-            vec4 tvalx = mix(tcolxsi, tcolx, tcolx.a);
-            colx[order[k]]=tvalx;
-
-            vec4 tvalx2 = mix(vec4(0.), tvalx, max(tcolx.a, tcolxsi.a));
-            colx[order[k]]=tvalx2;
-        }
+    // Replace array with individual variables for SkSL compatibility
+    bool rul0 = ((dx0.y > 0.5) && (dx1.x <= 0.));
+    bool rul1 = ((dx1.y > 0.5) && (dx0.x > dx1.z));
+    bool rul2 = ((dx2.y > 0.5) && (dx1.x > dx2.z));
+    
+    // Process each rule
+    if (rul0) {
+        int k = 0;
+        vec4 tcolxsi = vec4(0.);
+        vec4 tcolx = vec4(0.);
+        // Get colxsi based on order0
+        if (order0 == 0) tcolxsi = colxsi0;
+        else if (order0 == 1) tcolxsi = colxsi1;
+        else tcolxsi = colxsi2;
+        // Get colx based on order0
+        if (order0 == 0) tcolx = colx0;
+        else if (order0 == 1) tcolx = colx1;
+        else tcolx = colx2;
+        
+        vec4 tvalx = mix(tcolxsi, tcolx, tcolx.a);
+        vec4 tvalx2 = mix(vec4(0.), tvalx, max(tcolx.a, tcolxsi.a));
+        // Store back based on order0
+        if (order0 == 0) colx0 = tvalx2;
+        else if (order0 == 1) colx1 = tvalx2;
+        else colx2 = tvalx2;
+    }
+    if (rul1) {
+        int k = 1;
+        vec4 tcolxsi = vec4(0.);
+        vec4 tcolx = vec4(0.);
+        // Get colxsi based on order1
+        if (order1 == 0) tcolxsi = colxsi0;
+        else if (order1 == 1) tcolxsi = colxsi1;
+        else tcolxsi = colxsi2;
+        // Get colx based on order1
+        if (order1 == 0) tcolx = colx0;
+        else if (order1 == 1) tcolx = colx1;
+        else tcolx = colx2;
+        
+        vec4 tvalx = mix(tcolxsi, tcolx, tcolx.a);
+        vec4 tvalx2 = mix(vec4(0.), tvalx, max(tcolx.a, tcolxsi.a));
+        // Store back based on order1
+        if (order1 == 0) colx0 = tvalx2;
+        else if (order1 == 1) colx1 = tvalx2;
+        else colx2 = tvalx2;
+    }
+    if (rul2) {
+        int k = 2;
+        vec4 tcolxsi = vec4(0.);
+        vec4 tcolx = vec4(0.);
+        // Get colxsi based on order2
+        if (order2 == 0) tcolxsi = colxsi0;
+        else if (order2 == 1) tcolxsi = colxsi1;
+        else tcolxsi = colxsi2;
+        // Get colx based on order2
+        if (order2 == 0) tcolx = colx0;
+        else if (order2 == 1) tcolx = colx1;
+        else tcolx = colx2;
+        
+        vec4 tvalx = mix(tcolxsi, tcolx, tcolx.a);
+        vec4 tvalx2 = mix(vec4(0.), tvalx, max(tcolx.a, tcolxsi.a));
+        // Store back based on order2
+        if (order2 == 0) colx0 = tvalx2;
+        else if (order2 == 1) colx1 = tvalx2;
+        else colx2 = tvalx2;
     }
 
 #endif
 
-    float a1 = (dx[1].y < 0.5) ? colx[order[1]].a : ((dx[1].z > dx[0].x) ? colx[order[1]].a : 1.);
-    float a2 = (dx[2].y < 0.5) ? colx[order[2]].a : ((dx[2].z > dx[1].x) ? colx[order[2]].a : 1.);
-    col = mix(mix(colx[order[0]].rgb, colx[order[1]].rgb, a1), colx[order[2]].rgb, a2);
+    // Calculate a1 and a2 using dx1, dx2, dx0 and corresponding colx variables
+    float a1;
+    if (dx1.y < 0.5) {
+        // Get colx based on order1
+        if (order1 == 0) a1 = colx0.a;
+        else if (order1 == 1) a1 = colx1.a;
+        else a1 = colx2.a;
+    } else {
+        if (dx1.z > dx0.x) {
+            // Get colx based on order1
+            if (order1 == 0) a1 = colx0.a;
+            else if (order1 == 1) a1 = colx1.a;
+            else a1 = colx2.a;
+        } else {
+            a1 = 1.0;
+        }
+    }
+    
+    float a2;
+    if (dx2.y < 0.5) {
+        // Get colx based on order2
+        if (order2 == 0) a2 = colx0.a;
+        else if (order2 == 1) a2 = colx1.a;
+        else a2 = colx2.a;
+    } else {
+        if (dx2.z > dx1.x) {
+            // Get colx based on order2
+            if (order2 == 0) a2 = colx0.a;
+            else if (order2 == 1) a2 = colx1.a;
+            else a2 = colx2.a;
+        } else {
+            a2 = 1.0;
+        }
+    }
+    
+    // Get colx colors based on order
+    vec3 col0_rgb, col1_rgb, col2_rgb;
+    if (order0 == 0) col0_rgb = colx0.rgb;
+    else if (order0 == 1) col0_rgb = colx1.rgb;
+    else col0_rgb = colx2.rgb;
+    
+    if (order1 == 0) col1_rgb = colx0.rgb;
+    else if (order1 == 1) col1_rgb = colx1.rgb;
+    else col1_rgb = colx2.rgb;
+    
+    if (order2 == 0) col2_rgb = colx0.rgb;
+    else if (order2 == 1) col2_rgb = colx1.rgb;
+    else col2_rgb = colx2.rgb;
+    
+    col = mix(mix(col0_rgb, col1_rgb, a1), col2_rgb, a2);
     a = max(max(a, a1), a2);
     return vec4(col, a);
 }
@@ -666,7 +800,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         vec3 no2 = ni;
         vec3 ro_refr = ro;
 
-        vec4 [2] colo = vec4[2](vec4(0.),vec4(0.));
+        // Replace array with individual variables for SkSL compatibility
+        vec4 colo0 = vec4(0.);
+        vec4 colo1 = vec4(0.);
 
         for (int j = 0; j < 2 + ANGLE_loops; j++)
         {
@@ -680,7 +816,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
             if (tb > 0.)
             {
                 internalcol.rgb *= accum;
-                colo[j]=internalcol;
+                if (j == 0) colo0 = internalcol;
+                else colo1 = internalcol;
             }
 
             if ((tb <= 0.) || (internalcol.a < 1.))
@@ -702,7 +839,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
             }
         }
         float fresnel = R0 + (1. - R0) * pow(1. - dot(-rd, nr), 5.);
-        col = mix(mix(colo[1].rgb * colo[1].a, colo[0].rgb, colo[0].a)*fadeborders, reflcol, pow(fresnel, 1.5));
+        col = mix(mix(colo1.rgb * colo1.a, colo0.rgb, colo0.a)*fadeborders, reflcol, pow(fresnel, 1.5));
         col=clamp(col,0.,1.);
 #ifdef AA_CUBE
         }

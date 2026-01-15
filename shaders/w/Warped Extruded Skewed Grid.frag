@@ -1,7 +1,16 @@
 // --- Migrate Log ---
-// 初始化局部变量 `d`（在 `trace()` 中），在文件底部加入 `#include <../common/main_shadertoy.frag>`，声明缺失的 `uniform sampler2D iChannel0;`
+// 1) 替换 texture(iChannel0) 为 SG_TEX0 宏以支持 wrap/filter
+// 2) 用手写逆矩阵替换 inverse(mat2) 以兼容 Web
+// 3) 替换全局数组初始化为 getter 函数 (ps4 -> getPs4)
+// 4) 展开 getNormal() 中的数组循环避免 vec3[3] 初始化
+// 5) 声明缺失的 uniform sampler2D iChannel0
+//
 // --- Migrate Log (EN) ---
-// Initialize local variable `d` in `trace()`, append `#include <../common/main_shadertoy.frag>`, declare missing `uniform sampler2D iChannel0;`
+// 1) Replace texture(iChannel0) with SG_TEX0 macro for wrap/filter support
+// 2) Replace inverse(mat2) with manual inversion for Web compatibility
+// 3) Replace global array initialization with getter function (ps4 -> getPs4)
+// 4) Expand array loop in getNormal() to avoid vec3[3] initialization
+// 5) Declare missing uniform sampler2D iChannel0
 
 #include <../common/common_header.frag>
 
@@ -136,7 +145,7 @@ vec3 getTex(in vec2 p){
     
     // Stretching things out so that the image fills up the window.
     //p *= vec2(iResolution.y/iResolution.x, 1);
-    vec3 tx = texture(iChannel0, p/8.).xyz;
+    vec3 tx = SG_TEX0(iChannel0, p/8.).xyz;
     //vec3 tx = textureLod(iChannel0, p, 0.).xyz;
     return tx*tx; // Rough sRGB to linear conversion.
 }
@@ -176,8 +185,11 @@ vec2 skewXY(vec2 p, vec2 s){
 
 // Unskewing coordinates. "s" contains the X and Y skew factors.
 vec2 unskewXY(vec2 p, vec2 s){
-
-    return inverse(mat2(1, -s.y, -s.x, 1))*p;
+    // Hand-written 2x2 matrix inversion to avoid inverse() incompatibility on Web
+    // For mat2(1, -s.y, -s.x, 1), det = 1 - s.x*s.y
+    float det = 1.0 - s.x * s.y;
+    mat2 inv = mat2(1, s.y, s.x, 1) / det;
+    return inv * p;
 }
 
 
@@ -191,6 +203,13 @@ vec2 unskewXY(vec2 p, vec2 s){
 // Global local coordinates. It's lazy putting them here, but I'll tidy this up later.
 vec2 gP;
 
+// Getter function for ps4 array to avoid array initialization incompatibility on Web/SkSL
+vec2 getPs4(int index) {
+    if (index == 0) return vec2(-0.5, 0.5);
+    if (index == 1) return vec2(0.5, 0.5);
+    if (index == 2) return vec2(0.5, -0.5);
+    return vec2(-0.5, -0.5);
+}
 
 vec4 blocks(vec3 q){
 
@@ -221,9 +240,6 @@ vec4 blocks(vec3 q){
     vec2 id = vec2(0);
     vec2 cntr = vec2(0);
     
-    // Four block corner postions.
-    const vec2[4] ps4 = vec2[4](vec2(-.5, .5), vec2(.5), vec2(.5, -.5), vec2(-.5)); 
-    
     // Height scale.
     #ifdef FLAT_GRID
     const float hs = 0.; // Zero height pylons for the flat grid.
@@ -240,7 +256,7 @@ vec4 blocks(vec3 q){
     for(int i = 0; i<4; i++){
 
         // Block center.
-        cntr = ps4[i]/2. -  ps4[0]/2.;
+        cntr = getPs4(i)/2. -  getPs4(0)/2.;
         
         // Skewed local coordinates.
         p = skewXY(q.xz, sk);
@@ -423,18 +439,15 @@ vec3 getNormal(in vec3 p){
     //vec3 n = normalize(vec3(map(p + e.xyy) - map(p - e.xyy),
     //map(p + e.yxy) - map(p - e.yxy),	map(p + e.yyx) - map(p - e.yyx)));
     
-    // This mess is an attempt to speed up compiler time by contriving a break... It's 
-    // based on a suggestion by IQ. I think it works, but I really couldn't say for sure.
-    float sgn = 1.;
-    float mp[6];
-    vec3[3] e6 = vec3[3](e.xyy, e.yxy, e.yyx);
-    for(int i = 0; i<6; i++){
-		mp[i] = map(p + sgn*e6[i/2]);
-        sgn = -sgn;
-        if(sgn>2.) break; // Fake conditional break;
-    }
+    // Expanded array sampling to avoid vec3[3] array initialization incompatibility on Web/SkSL
+    float mp0 = map(p + e.xyy);
+    float mp1 = map(p - e.xyy);
+    float mp2 = map(p + e.yxy);
+    float mp3 = map(p - e.yxy);
+    float mp4 = map(p + e.yyx);
+    float mp5 = map(p - e.yyx);
     
-    return normalize(vec3(mp[0] - mp[1], mp[2] - mp[3], mp[4] - mp[5]));
+    return normalize(vec3(mp0 - mp1, mp2 - mp3, mp4 - mp5));
 }
 
 
