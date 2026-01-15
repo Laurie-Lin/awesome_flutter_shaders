@@ -8,15 +8,6 @@ description: Adjust the current shader file to follow the Flutter-compatible Sha
 你现在运行在 VS Code 的 Copilot Chat 里，需要直接修改当前活动的 Shadertoy fragment shader，使其符合 Flutter / Skia / SkSL 环境的兼容要求。请按以下步骤处理：
 
 1. **文件结构（顺序必须遵守）**
-   - **文件最上方**（在所有其他代码之前）：
-     ```glsl
-     // --- Migrate Log ---
-     // {中文改动摘要}
-     //
-     // {English change summary}
-     
-     #include <../common/common_header.frag>
-     ```
    - 如果当前 pass 需要使用 RGBA8 feedback（sg_feedback_rgba8），则在 `common_header.frag` 之后紧接着添加：
      ```glsl
      #include <../common/sg_feedback_rgba8.frag>
@@ -67,15 +58,27 @@ description: Adjust the current shader file to follow the Flutter-compatible Sha
    - **默认不添加数值稳定性保护**（如 `max(d, 1e-4)`）；仅当我在对话中明确要求"Android 稳定性"时，才对具体除数添加极小下限，并说明原因。
 
 4. **SkSL 特定的不兼容修复（必须处理）**
-   - **全局数组初始化**：`const int[] arr = int[](...)` 不支持，改为 getter 函数：
-     ```glsl
-     int GetArrayValue(int index) {
-         if (index == 0) return value0;
-         if (index == 1) return value1;
-         ...
-         return 0;
-     }
-     ```
+   - **数组初始化（全局/局部都算）**：SkSL/Web 下不支持数组构造器/初始化器，包含但不限于：
+     - `const int[] arr = int[](...)`
+     - `const vec2[4] ps = vec2[4](...)`
+     - `vec3 e6[3] = vec3[3](...)`
+     - `const vec2 _300[4] = vec2[]( ... )`（编译器生成的形式，通常来自上面的写法）
+     
+     处理方式（任选其一，优先保持逻辑最接近原代码）：
+     - 改成 getter 函数（或 `switch/if` 链）按 index 返回常量：
+       ```glsl
+       vec2 GetPs4(int index) {
+           if (index == 0) return vec2(-0.5, 0.5);
+           if (index == 1) return vec2(0.5, 0.5);
+           if (index == 2) return vec2(0.5, -0.5);
+           return vec2(-0.5, -0.5);
+       }
+       ```
+     - 或者直接展开（把数组 + 循环改成多次显式调用），尤其适合 `getNormal()` 这类固定 6 次采样。
+
+   - **避免 `inverse()`（尤其是 `inverse(mat2)`）**：Web 端可能会把 `inverse()` 降级成 `spvInverse`，导致 `unknown identifier 'spvInverse'`。
+     - 2x2 建议手写逆矩阵（用行列式 `det`），替代 `inverse(mat2(...))`。
+     - 仅在确实需要矩阵求逆时修改，保持数学等价。
    - **位移运算符 `>>`**：改为 `floor(float(value) / pow(2.0, float(shift)))`
    - **位与运算符 `&`**：改为 `int(mod(shifted, 2.0))`
    - **取模运算符 `%`**（整数）：改为 `int(mod(float(value), float(divisor)))`
@@ -94,12 +97,13 @@ description: Adjust the current shader file to follow the Flutter-compatible Sha
    - **迁移日志的位置和格式**（必须在文件最上方，include 之前）：
      ```glsl
      // --- Migrate Log ---
-     // 初始化局部变量以避免未定义行为
-     // 保护 log(r)*r/dr 防止 r=0
+     // 1) 初始化局部变量以避免未定义行为
+     // 2) 保护 log(r)*r/dr 防止 r=0
      //
-     // Initialize local variables to avoid undefined behavior
-     // Protect log(r)*r/dr against r=0
+     // 1) Initialize local variables to avoid undefined behavior
+     // 2) Protect log(r)*r/dr against r=0
      ```
+     重要：中英文之间那一行空的注释 `//` 必须保留，不能省略。
    - 如果原文件已有自定义迁移日志或注释，保持原作者信息不变，只在必要时补充新的改动说明。
 
 6. **Android 特殊稳定性请求（仅在我明确要求时执行，默认不做）**
