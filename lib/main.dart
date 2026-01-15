@@ -89,7 +89,7 @@ class AwesomeShader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     for (final buf in buffers) {
-      buf.scale = kIsWeb ? 0.2 : 0.5;
+      buf.scale = (kDebugMode && kIsWeb) ? 0.2 : 0.6;
     }
     Log.i('Building AwesomeShader with buffers: ${buffers.map((e) => e.shaderAssetPath).join(', ')}');
     return ShaderSurface.auto(
