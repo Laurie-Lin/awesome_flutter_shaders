@@ -1,11 +1,10 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
-    // shaders/z/Zippy Zaps.frag
-    AwesomeShader(SA.zippyZaps),
+    if (!kIsWeb) AwesomeShader(SA.zippyZaps),
   ];
 }

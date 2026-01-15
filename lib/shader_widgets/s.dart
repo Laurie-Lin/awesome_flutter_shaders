@@ -1,36 +1,33 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_buffers/shader_buffers.dart';
 import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
     AwesomeShader(SA.seascape),
     AwesomeShader(SA.serverRoom),
     AwesomeShader(SA.shaderArtCodingIntroduction),
     AwesomeShader(SA.shockWaveWithSaturation.feed(SA.textureStars)),
-    AwesomeShader(SA.simpleRefractionTest.feed(SA.cubemapUffiziGallery)),
+    if (!kIsWeb) AwesomeShader(SA.simpleRefractionTest.feed(SA.cubemapUffiziGallery)),
     AwesomeShader(SA.simpleRippleShader.feed(SA.textureStars)),
     AwesomeShader(SA.singularity),
-    AwesomeShader(
-      SA.spaceCurvature.feed(SA.textureStars, wrap: .repeat).feed(SA.textureOrganic2, wrap: .repeat),
-    ),
-    AwesomeShader(SA.sphereGears.feed(SA.textureRustyMetal)),
+    if (!kIsWeb)
+      AwesomeShader(
+        SA.spaceCurvature.feed(SA.textureStars, wrap: .repeat).feed(SA.textureOrganic2, wrap: .repeat),
+      ),
+    if (!kIsWeb) AwesomeShader(SA.sphereGears.feed(SA.textureRustyMetal)),
     AwesomeShader(SA.splitPrism.feed(SA.textureLondon)),
-    Builder(
-      builder: (context) {
-        final shader = SA.spreadingFrost.shaderBuffer;
-        shader.feedImageFromAsset(SA.textureLondon);
-        shader.feedImageFromAsset(SA.textureLichen);
-        shader.feedImageFromAsset(SA.textureOrganic2);
-        return AwesomeShader(
-          shader,
-          upSideDown: false,
-        );
-      },
-    ),
-    AwesomeShader(SA.starfieldNew.feed(SA.textureRgbaNoiseMedium, wrap: .repeat)),
+    AwesomeShader(upSideDown: false, () {
+      final shader = SA.spreadingFrost.shaderBuffer;
+      shader.feedImageFromAsset(SA.textureLondon);
+      shader.feedImageFromAsset(SA.textureLichen);
+      shader.feedImageFromAsset(SA.textureOrganic2);
+      return [shader];
+    }),
+    if (!kIsWeb) AwesomeShader(SA.starfieldNew.feed(SA.textureRgbaNoiseMedium, wrap: .repeat)),
 
     // TODO
     // Builder(builder: (_) {

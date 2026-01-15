@@ -1,5 +1,7 @@
 {
   "editor.formatOnSave": true,
+  "[glsl]": {
+    "editor.formatOnSave": false,
+  },
   "dart.lineLength": 120,
-  "cmake.ignoreCMakeListsMissing": true,
 }

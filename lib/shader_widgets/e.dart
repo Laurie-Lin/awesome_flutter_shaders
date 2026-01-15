@@ -1,12 +1,15 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
     AwesomeShader(SA.ed209),
-    const AwesomeShader('shaders/e/electron.frag', upSideDown: false),
+    AwesomeShader('shaders/e/electron.frag', upSideDown: false),
+    // Elemental Ring
+    AwesomeShader('shaders/e/Elemental Ring.frag'),
     // TODO: Fix: Effect not match
     // Builder(
     //   builder: (context) {
@@ -23,6 +26,8 @@ List<Widget> shadersWidget() {
     //     );
     //   },
     // ),
+    // Endless living creature
+    AwesomeShader('shaders/e/Endless living creature.frag'),
     AwesomeShader(
       SA.entryLevel
           .feed(
@@ -31,5 +36,10 @@ List<Widget> shadersWidget() {
           )
           .feed(SA.cubemapUffiziGallery),
     ),
+    // Ether
+    AwesomeShader('shaders/e/Ether.frag'),
+    AwesomeShader('shaders/e/Eve Arrives.frag'.feed(SA.textureOrganic2)),
+    // Even faster procedural ocean
+    if (!kIsWeb) AwesomeShader('shaders/e/Even faster procedural ocean.frag'),
   ];
 }

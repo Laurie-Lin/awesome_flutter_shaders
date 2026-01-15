@@ -1,34 +1,35 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
-    AwesomeShader(SA.inerciaIntendedOne),
+    if (!kIsWeb) AwesomeShader(SA.inerciaIntendedOne),
     // TODO: The effect is a bit different, the reson mabey is the linear filter
-    Builder(
-      builder: (context) {
+    AwesomeShader(
+      () {
         final buffer = SA.inkBlotSpread.shaderBuffer;
         buffer.feed(SA.textureRgbaNoiseMedium, wrap: WrapMode.repeat, filter: FilterMode.linear);
-        buffer.feed(SA.textureLondon);
-        return AwesomeShader(
-          buffer,
-          upSideDown: false,
-        );
+        return [buffer];
       },
+      upSideDown: false,
+      inputs: [SA.textureLondon],
     ),
     AwesomeShader(SA.inputTime),
-    Builder(
-      builder: (context) {
+    if (!kIsWeb)
+      AwesomeShader(() {
         final bufferA = ShaderBuffer(SA.insideTheMandelbulbIiBufferA);
         final mainBuffer = ShaderBuffer(SA.insideTheMandelbulbIi);
         mainBuffer.feedShader(bufferA);
-        return AwesomeShader([bufferA, mainBuffer]);
-      },
-    ),
+        return [bufferA, mainBuffer];
+      }),
     AwesomeShader(SA.insideTheMandelbulbIiBufferA),
-    AwesomeShader(SA.inverseBilinear.feed(SA.textureLondon)),
-    AwesomeShader(SA.ionize, upSideDown: false),
+    AwesomeShader(
+      SA.inverseBilinear,
+      inputs: [SA.textureLondon],
+    ),
+    if (!kIsWeb) AwesomeShader(SA.ionize, upSideDown: false),
   ];
 }

@@ -1,15 +1,16 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
-    AwesomeShader(SA.fire),
+    if (!kIsWeb) AwesomeShader(SA.fire3D),
     AwesomeShader(SA.flame),
     AwesomeShader(SA.fractalPyramid),
-    Builder(
-      builder: (_) {
+    if (!kIsWeb)
+      AwesomeShader(() {
         final bufferA = SA.fracturedOrbBufferA.shaderBuffer;
         bufferA.feed(
           SA.textureRgbaNoiseMedium,
@@ -17,9 +18,8 @@ List<Widget> shadersWidget() {
           filter: FilterMode.linear,
         );
         final bufferB = SA.fracturedOrb.feed(bufferA);
-        return AwesomeShader([bufferA, bufferB]);
-      },
-    ),
-    AwesomeShader(SA.fullSpectrumCyber),
+        return [bufferA, bufferB];
+      }),
+    if (!kIsWeb) AwesomeShader(SA.fullSpectrumCyber),
   ];
 }

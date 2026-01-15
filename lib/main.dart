@@ -1,10 +1,14 @@
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart';
-import 'package:shader_buffers/shader_buffers.dart';
+import 'package:shader_buffers/shader_buffers.dart' hide ShaderController;
 import 'package:shader_graph/shader_graph.dart';
+import 'package:signale/signale.dart';
+import 'bricks_game.dart';
+import 'pacman_game.dart';
 import 'shader_widgets/a.dart' as a;
 import 'shader_widgets/b.dart' as b;
 import 'shader_widgets/c.dart' as c;
@@ -29,44 +33,75 @@ import 'shader_widgets/z.dart' as z;
 import 'shaders.dart';
 
 typedef Shaders = List<ShaderBuffer>;
+typedef ShaderBuilder = Shaders Function();
 
 class AwesomeShader extends StatelessWidget {
-  const AwesomeShader(this.buffer, {this.upSideDown = true, super.key, KeyboardController? keyboardController});
+  AwesomeShader(
+    this.buffer, {
+    this.upSideDown = true,
+    this.inputs,
+    this.keyboardController,
+    this.shaderController,
+    super.key,
+  }) {
+    switch (buffer) {
+      case ShaderBuilder builder:
+        final buffer = builder();
+        buffers.addAll(buffer);
+        if (buffer.length == 1) {
+          final sb = buffer.first;
+          if (inputs != null) {
+            for (var inp in inputs!) {
+              sb.feed(inp);
+            }
+          }
+        }
+      case String s:
+        final buf = s.shaderBuffer;
+        if (inputs != null) {
+          for (var inp in inputs!) {
+            buf.feed(inp);
+          }
+        }
+        buffers.add(buf);
+      case ShaderBuffer sb:
+        buffers.add(sb);
+        if (inputs != null) {
+          for (var inp in inputs!) {
+            sb.feed(inp);
+          }
+        }
+      case List<ShaderBuffer> list:
+        buffers.addAll(list);
+      default:
+        throw ArgumentError('buffer must be String/ShaderBuffer/List<ShaderBuffer>, got ${buffer.runtimeType}');
+    }
+  }
   final dynamic buffer;
   final bool upSideDown;
+  final List<dynamic>? inputs;
+  final ShaderController? shaderController;
+  final KeyboardController? keyboardController;
+  final buffers = <ShaderBuffer>[];
+
+  /// See https://github.com/flutter/flutter/issues/180959
 
   @override
   Widget build(BuildContext context) {
-    final buffers = <ShaderBuffer>[];
-    print('buffer runtimeType: ${buffer.runtimeType}');
-    if (buffer is String) {
-      buffers.add((buffer as String).shaderBuffer);
-    } else if (buffer is ShaderBuffer) {
-      buffers.add(buffer);
-    } else if (buffer is Shaders) {
-      buffers.addAll(buffer);
-    } else {
-      throw ArgumentError('buffer must be String or ShaderBuffer, got ${buffer.runtimeType}');
-    }
     for (final buf in buffers) {
-      buf.scale = 0.4;
+      buf.scale = kIsWeb ? 0.2 : 0.5;
     }
-    return Column(
-      children: [
-        Expanded(
-          child: ShaderSurface.buffers(
-            key: ValueKey(buffers.map((e) => e.shaderAssetPath).join(',')),
-            buffers,
-            upSideDown: upSideDown,
-          ),
-        ),
-        Text(
-          basenameWithoutExtension(buffers.last.shaderAssetPath),
-          style: shaderTitleStyle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+    Log.i('Building AwesomeShader with buffers: ${buffers.map((e) => e.shaderAssetPath).join(', ')}');
+    return ShaderSurface.auto(
+      buffers,
+      key: key ?? ValueKey(buffers.map((e) => e.shaderAssetPath).join(',')),
+      upSideDown: upSideDown,
+      shaderController: shaderController,
+      onLoading: (context) {
+        return const Center(
+          child: LinearProgressIndicator(),
+        );
+      },
     );
   }
 }
@@ -88,65 +123,93 @@ void main() {
 }
 
 TextStyle shaderTitleStyle = const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold);
-Map<String, ShaderController> controllers = {};
-Widget shader(String asset, {List<String> channels = const [], bool upSideDown = true}) {
-  // ! 0.5 to reduce GPU load
-  LayerBuffer layerBuffer = LayerBuffer(shaderAssetsName: asset, scaleRenderView: 0.5);
-  layerBuffer.setChannels(channels.map((channel) => IChannel(assetsTexturePath: channel)).toList());
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Transform.flip(
-        flipY: upSideDown,
-        child: LayoutBuilder(
-          builder: (context, con) {
-            return ShaderBuffers(
-              key: UniqueKey(),
-              height: con.maxWidth * 9 / 16,
-              controller: ShaderController(),
-              mainImage: layerBuffer,
-            );
-          },
-        ),
-      ),
-      Text(basenameWithoutExtension(asset), style: shaderTitleStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
-    ],
-  );
-}
+// Map<String, ShaderController> controllers = {};
+// Widget shader(String asset, {List<String> channels = const [], bool upSideDown = true}) {
+//   // ! 0.5 to reduce GPU load
+//   LayerBuffer layerBuffer = LayerBuffer(shaderAssetsName: asset, scaleRenderView: 0.5);
+//   layerBuffer.setChannels(channels.map((channel) => IChannel(assetsTexturePath: channel)).toList());
+//   return Column(
+//     mainAxisSize: MainAxisSize.min,
+//     children: [
+//       Transform.flip(
+//         flipY: upSideDown,
+//         child: LayoutBuilder(
+//           builder: (context, con) {
+//             return ShaderBuffers(
+//               key: UniqueKey(),
+//               height: con.maxWidth * 9 / 16,
+//               controller: ShaderController(),
+//               mainImage: layerBuffer,
+//             );
+//           },
+//         ),
+//       ),
+//       Text(basenameWithoutExtension(asset), style: shaderTitleStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+//     ],
+//   );
+// }
 
 bool enableImpller = false;
 
 ui.Image? noise;
 bool get isAndroid => GetPlatform.isAndroid;
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderGames() {
+  return [
+    BricksGame(),
+    PacmanGame(),
+  ];
+}
+
+List<Widget> buildShaderWidgets() {
   List<Widget> children = [
-    // Lights in Smoke
-    // // electron
-    // AwesomeShader('shaders/a/anamorphic rendering.frag'.feed(SA.textureLondon), upSideDown: false),
-    ...z.shadersWidget(),
-    ...w.shadersWidget(),
-    ...v.shadersWidget(),
-    ...u.shadersWidget(),
-    ...t.shadersWidget(),
-    ...s.shadersWidget(),
-    ...r.shadersWidget(),
-    ...p.shadersWidget(),
-    ...o.shadersWidget(),
-    ...n.shadersWidget(),
-    ...m.shadersWidget(),
-    ...l.shadersWidget(),
-    ...i.shadersWidget(),
-    ...h.shadersWidget(),
-    ...g.shadersWidget(),
-    ...f.shadersWidget(),
-    ...e.shadersWidget(),
-    ...d.shadersWidget(),
-    ...c.shadersWidget(),
-    ...b.shadersWidget(),
-    ...a.shadersWidget(),
+    ...z.buildShaderWidgets(),
+    ...w.buildShaderWidgets(),
+    ...v.buildShaderWidgets(),
+    ...u.buildShaderWidgets(),
+    ...t.buildShaderWidgets(),
+    ...s.buildShaderWidgets(),
+    ...r.buildShaderWidgets(),
+    ...p.buildShaderWidgets(),
+    ...o.buildShaderWidgets(),
+    ...n.buildShaderWidgets(),
+    ...m.buildShaderWidgets(),
+    ...l.buildShaderWidgets(),
+    ...i.buildShaderWidgets(),
+    ...h.buildShaderWidgets(),
+    ...g.buildShaderWidgets(),
+    ...f.buildShaderWidgets(),
+    ...e.buildShaderWidgets(),
+    ...d.buildShaderWidgets(),
+    ...c.buildShaderWidgets(),
+    ...b.buildShaderWidgets(),
+    ...a.buildShaderWidgets(),
+    // Derivatives Repro.frag
+    // AwesomeShader('shaders/repro/Derivatives Repro.frag'),
   ];
   return children;
+}
+
+AwesomeShader? findShaderByName(String shaderAsset) {
+  for (final widget in buildShaderWidgets()) {
+    if (widget is AwesomeShader) {
+      final as = widget;
+      final name = basenameWithoutExtension(as.buffers.last.shaderAssetPath);
+      Log.i('Checking shader asset: ${as.buffers.last.shaderAssetPath}');
+      if (name == shaderAsset) {
+        return as;
+      }
+    }
+  }
+  return null;
+}
+
+Iterable<AwesomeShader> get imageEffectsWidgets sync* {
+  for (final widget in buildShaderWidgets()) {
+    if (widget is AwesomeShader && widget.inputs != null) {
+      yield widget;
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -154,7 +217,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> children = shadersWidget();
+    // List<Widget> children = gameWidgets() + buildShaderWidgets();
+    List<Widget> children = buildShaderWidgets();
     return MaterialApp(
       title: 'Shaders Gallery',
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple), useMaterial3: true),
@@ -162,12 +226,12 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.black,
         body: Builder(
           builder: (context) {
-            double width = MediaQuery.of(context).size.width / 2;
+            double width = MediaQuery.of(context).size.width / 4;
             double height = width * 9 / 16 + 24;
             double childAspectRatio = width / height;
             return GridView.builder(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: MediaQuery.of(context).size.width / 2,
+                maxCrossAxisExtent: width,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
                 childAspectRatio: childAspectRatio,
@@ -176,9 +240,6 @@ class MyApp extends StatelessWidget {
               itemBuilder: (context, index) {
                 return GestureDetector(
                   onTap: () async {
-                    controllers.values.forEach((ctl) {
-                      ctl.pause();
-                    });
                     await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) {
@@ -187,11 +248,6 @@ class MyApp extends StatelessWidget {
                             child: GestureDetector(
                               onDoubleTap: () async {
                                 Navigator.of(context).pop();
-                                // TODO: Fix this
-                                await Future.delayed(const Duration(milliseconds: 4000));
-                                controllers.values.forEach((ctl) {
-                                  ctl.play();
-                                });
                               },
                               child: Center(child: children[index]),
                             ),
@@ -201,7 +257,26 @@ class MyApp extends StatelessWidget {
                     );
                   },
                   behavior: HitTestBehavior.translucent,
-                  child: children[index],
+                  child: Column(
+                    children: [
+                      Expanded(child: children[index]),
+                      Builder(
+                        builder: (context) {
+                          Log.i(children[index].runtimeType);
+                          if (children[index] is AwesomeShader) {
+                            final as = children[index] as AwesomeShader;
+                            return Text(
+                              basenameWithoutExtension(as.buffers.last.shaderAssetPath),
+                              style: shaderTitleStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ],
+                  ),
                 );
               },
             );

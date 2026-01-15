@@ -1,9 +1,10 @@
 import 'package:awesome_flutter_shaders/main.dart';
 import 'package:awesome_flutter_shaders/shaders.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_graph/shader_graph.dart';
 
-List<Widget> shadersWidget() {
+List<Widget> buildShaderWidgets() {
   return [
     AwesomeShader(
       SA.pageCurlEffectOnBall.shaderBuffer
@@ -18,31 +19,33 @@ List<Widget> shadersWidget() {
       upSideDown: false,
     ),
     AwesomeShader(SA.perlinSinSphere),
-    AwesomeShader(SA.perspexWebLattice.feed(SA.textureLondon), upSideDown: false),
+    if (!kIsWeb) AwesomeShader(SA.perspexWebLattice.feed(SA.textureLondon), upSideDown: false),
     AwesomeShader(SA.phantomStarForCineShader),
     AwesomeShader(SA.pigSquad9YearAnniversary),
-    AwesomeShader(
-      SA.pistonsWithMotionBlur.shaderBuffer.feed(SA.cubemapUffiziGallery).feed(SA.textureRgbaNoiseMedium),
-    ),
+    if (!kIsWeb)
+      AwesomeShader(
+        SA.pistonsWithMotionBlur.shaderBuffer.feed(SA.cubemapUffiziGallery).feed(SA.textureRgbaNoiseMedium),
+      ),
     AwesomeShader(SA.plasmaGlobe.feed(SA.textureRgbaNoiseMedium)),
-    Builder(
-      builder: (_) {
+    if (!kIsWeb)
+      AwesomeShader(() {
         final shader = SA.portalIosAr.shaderBuffer;
         final bufferA = SA.portalIosArBufferA.shaderBuffer;
         bufferA.feedback();
         shader.feedShader(bufferA);
         shader.feedImageFromAsset(SA.textureLondon);
-        return AwesomeShader([bufferA, shader]);
-      },
-    ),
-    Builder(
-      builder: (_) {
-        final shader = SA.portal2BoxFlipRotation.shaderBuffer;
-        shader.feed(SA.textureLondon);
-        shader.feed(SA.textureWood);
-        return AwesomeShader(shader, upSideDown: false);
-      },
-    ),
+        return [bufferA, shader];
+      }),
+    if (!kIsWeb)
+      AwesomeShader(
+        () {
+          final shader = SA.portal2BoxFlipRotation.shaderBuffer;
+          shader.feed(SA.textureLondon);
+          shader.feed(SA.textureWood);
+          return [shader];
+        },
+        upSideDown: false,
+      ),
     AwesomeShader(SA.proteanClouds, upSideDown: false),
     AwesomeShader(
       SA.simplePageCurlEffect.feed(SA.textureLondon).feed(SA.textureWood),

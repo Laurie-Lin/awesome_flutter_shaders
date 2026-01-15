@@ -18,23 +18,19 @@ class SA {
   static String get textureAbstract1 => path('assets/texture/Abstract1.jpg');
   static String get textureOrganic2 => path('assets/texture/Organic2.jpg');
   static String get textureOrganic3 => path('assets/texture/Organic3.jpg');
-  // Stars
   static String get textureStars => path('assets/texture/Stars.jpg');
   static String get textureLichen => path('assets/texture/Lichen.jpg');
   static String get textureRustyMetal => path('assets/texture/Rusty Metal.jpg');
   static String get textureLondon => path('assets/texture/London.jpg');
   static String get textureWood => path('assets/texture/Wood.jpg');
-  // Perbbles
   static String get texturePebbles => path('assets/texture/Pebbles.png');
-  // Rock Tiles
   static String get textureRockTiles => path('assets/texture/Rock Tiles.jpg');
-  //
+
+  ///
   static String get cubemapUffiziGallery => path('assets/cubemaps/Uffizi Gallery.png');
   static String get textureRgbaNoiseMedium => path('assets/texture/RGBA Noise Medium.png');
   static String get textureRgbaNoiseSmall => path('assets/texture/RGBA Noise Small.png');
-  // Grey Noise Mediu
   static String get textureGreyNoiseMedium => path('assets/texture/Grey Noise Medium.png');
-  // Grey Noise Small
   static String get textureGreyNoiseSmall => path('assets/texture/Grey Noise Small.png');
 
   /// a
@@ -89,7 +85,7 @@ class SA {
   static String get entryLevel => path('shaders/e/EntryLevel.frag');
 
   // f
-  static String get fire => path('shaders/f/Fire.frag');
+  static String get fire3D => path('shaders/f/3D Fire.frag');
   static String get flame => path('shaders/f/Flame.frag');
   static String get fractalPyramid => path('shaders/f/fractal pyramid.frag');
   static String get fullSpectrumCyber => path('shaders/f/Full Spectrum Cyber.frag');
@@ -116,7 +112,6 @@ class SA {
   // l
   static String get landmassZMorph => path('shaders/l/Landmass z-morph.frag');
   static String get letsSelfReflect => path("shaders/l/Let's self reflect.frag");
-  // 'shaders/l/Lights in Smoke.frag'
   static String get lightInSmoke => path('shaders/l/Lights in Smoke.frag');
 
   // m
@@ -156,8 +151,8 @@ class SA {
   static String get portal2BoxFlipRotation => path('shaders/p/Portal 2 Box Flip Rotation.frag');
   static String get proteanClouds => path('shaders/p/Protean clouds.frag');
   static String get pulsarExplained => path('shaders/p/Pulsar Explained.frag');
-  // 'shaders/p/Pistons with Motion Blur.frag'
 
+  /// r
   static String get reclaimTheStreets => path('shaders/r/Reclaim the streets.frag');
   static String get rotateAndPointsCircle => path('shaders/r/Rotate And Points Circle.frag');
   static String get redBlueSwirl => path('shaders/r/Red-Blue Swirl.frag');
@@ -166,13 +161,14 @@ class SA {
   static String get rainforestBufferA => path('shaders/r/Rainforest BufferA.frag');
   static String get rainforest => path('shaders/r/Rainforest.frag');
 
+  /// p
   static String get pinku => path('shaders/p/Pinku.frag');
   static String get pageCurl => path('shaders/p/page_curl.frag');
   static String get protoplanetBufferA => path('shaders/p/Protoplanet_BufferA.frag');
   static String get protoplanet => path('shaders/p/Protoplanet.frag');
 
   // s
-  static String get simplePageCurlEffect => path('shaders/p/simple page curl effect.frag');
+  static String get simplePageCurlEffect => path('shaders/s/simple page curl effect.frag');
   static String get shockWaveWithSaturation => path('shaders/s/Shock Wave with Saturation.frag');
   static String get simpleRippleShader => path('shaders/s/Simple ripple shader.frag');
   static String get singularity => path('shaders/s/Singularity.frag');
