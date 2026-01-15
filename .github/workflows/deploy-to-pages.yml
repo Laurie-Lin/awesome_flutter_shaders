@@ -28,7 +28,7 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release
+        run: flutter build web --wasm
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
