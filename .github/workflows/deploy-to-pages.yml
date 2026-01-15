@@ -28,7 +28,7 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --wasm
+        run: flutter build web --wasm --base-href /awesome_flutter_shaders/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
